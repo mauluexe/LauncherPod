@@ -45,7 +45,7 @@ data class PodConfig(
     val wheelSize: Int = 250,
     val textScale: Float = 1f,
     val showCornerClock: Boolean = true,
-    val lockMode: LockMode = LockMode.PASSCODE
+    val lockMode: LockMode = LockMode.PATTERN
 )
 
 data class LaunchableApp(val label: String, val componentName: ComponentName)
@@ -114,7 +114,11 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
     }
     private val _state = MutableStateFlow(
         LauncherState(
-            screen = if (preferences.getInt("setup_version", 0) < 2) Screen.ONBOARDING else Screen.HOME,
+            screen = when {
+                preferences.getInt("setup_version", 0) < 2 -> Screen.ONBOARDING
+                preferences.getString("lock_mode", LockMode.PATTERN.name) != LockMode.PATTERN.name -> Screen.SET_CREDENTIAL
+                else -> Screen.HOME
+            },
             apps = loadApps(),
             pinnedPackages = loadPinnedPackages(),
             config = loadConfig()
@@ -225,7 +229,7 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
                 3 -> context.startActivity(Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             Screen.APPEARANCE -> updateAppearance(state.selectedIndex)
-            Screen.LOCK_SETTINGS -> if (state.selectedIndex < LockMode.entries.size) updateLockMode(state.selectedIndex) else open(Screen.SET_CREDENTIAL)
+            Screen.LOCK_SETTINGS -> open(Screen.SET_CREDENTIAL)
             Screen.SET_CREDENTIAL -> if (state.config.lockMode == LockMode.PASSCODE) handlePasscodeSetup(state.selectedIndex)
             Screen.APPS -> state.apps.getOrNull(state.selectedIndex)?.let(::launchApp)
             Screen.CUSTOMIZE -> state.apps.getOrNull(state.selectedIndex)?.let(::togglePinned)
@@ -322,12 +326,8 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
         Screen.ONBOARDING_HOME -> listOf(if (_state.value.config.language == 0) "デフォルトホームに設定" else "Set as Default Home")
         Screen.ONBOARDING_AUDIO -> listOf(if (_state.value.config.language == 0) "音楽へのアクセスを許可" else "Allow Music Access")
         Screen.ONBOARDING_THEME -> listOf("Original", "Classic Black", "Silver", "Mono")
-        Screen.ONBOARDING_LOCK -> if (_state.value.config.language == 0) listOf("4桁パスコード", "パターン", "ホイールジェスチャー", "なし") else LockMode.entries.map { it.label }
-        Screen.ONBOARDING_CREDENTIAL -> when (_state.value.config.lockMode) {
-            LockMode.PASSCODE -> List(10) { it.toString() }
-            LockMode.PATTERN -> List(9) { (it + 1).toString() }
-            else -> emptyList()
-        }
+        Screen.ONBOARDING_LOCK -> listOf(label("パターン", "Pattern"))
+        Screen.ONBOARDING_CREDENTIAL -> List(9) { (it + 1).toString() }
         Screen.ONBOARDING_APPS -> listOf(
             if (_state.value.config.language == 0) "完了  ·  ${_state.value.pinnedPackages.size}個を選択"
             else "Done  ·  ${_state.value.pinnedPackages.size} selected"
@@ -347,19 +347,11 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
         Screen.MORE -> listOf(label("アプリ", "Apps"), label("ホームを編集", "Customize Home"), label("設定", "Settings"))
         Screen.SETTINGS -> listOf(label("外観", "Appearance"), label("ロック画面", "Lock Screen"), label("Android設定", "Android Settings"), label("外部音楽アクセス", "External Music Access"))
         Screen.APPEARANCE -> appearanceLabels()
-        Screen.LOCK_SETTINGS -> LockMode.entries.map { if (it == _state.value.config.lockMode) "✓ ${it.label}" else it.label } + if (_state.value.config.lockMode == LockMode.OFF) emptyList() else listOf("Change Unlock Code")
-        Screen.SET_CREDENTIAL -> when (_state.value.config.lockMode) {
-            LockMode.PASSCODE -> List(10) { it.toString() }
-            LockMode.PATTERN -> List(9) { (it + 1).toString() }
-            else -> emptyList()
-        }
+        Screen.LOCK_SETTINGS -> listOf(label("パターンを変更", "Change Pattern"))
+        Screen.SET_CREDENTIAL -> List(9) { (it + 1).toString() }
         Screen.APPS -> _state.value.apps.map { it.label }
         Screen.CUSTOMIZE -> _state.value.apps.map { if (it.componentName.packageName in _state.value.pinnedPackages) "✓ ${it.label}" else "+ ${it.label}" }
-        Screen.LOCK -> when (_state.value.config.lockMode) {
-            LockMode.PASSCODE -> List(10) { it.toString() }
-            LockMode.PATTERN -> List(9) { (it + 1).toString() }
-            else -> emptyList()
-        }
+        Screen.LOCK -> List(9) { (it + 1).toString() }
         Screen.NOW_PLAYING -> emptyList()
     }
 
@@ -380,18 +372,18 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun setOnboardingTheme(index: Int) {
-        val next = preset(index.coerceIn(0, 3)).copy(language = _state.value.config.language)
+        val next = preset(index.coerceIn(0, 3)).copy(language = _state.value.config.language, lockMode = LockMode.PATTERN)
         saveConfig(next)
-        _state.value = _state.value.copy(config = next, screen = Screen.ONBOARDING_LOCK, selectedIndex = 0)
+        _state.value = _state.value.copy(config = next, screen = Screen.ONBOARDING_CREDENTIAL, selectedIndex = 0)
     }
 
     private fun setOnboardingLock(index: Int) {
-        val mode = LockMode.entries[index.coerceIn(0, LockMode.entries.lastIndex)]
+        val mode = LockMode.PATTERN
         val next = _state.value.config.copy(lockMode = mode)
         saveConfig(next)
         _state.value = _state.value.copy(
             config = next,
-            screen = if (mode == LockMode.OFF) Screen.ONBOARDING_APPS else Screen.ONBOARDING_CREDENTIAL,
+            screen = Screen.ONBOARDING_CREDENTIAL,
             selectedIndex = 0,
             lockInput = emptyList()
         )
@@ -468,6 +460,9 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun finishCredentialSetup() {
+        val patternConfig = _state.value.config.copy(lockMode = LockMode.PATTERN)
+        saveConfig(patternConfig)
+        _state.value = _state.value.copy(config = patternConfig)
         open(if (_state.value.screen == Screen.ONBOARDING_CREDENTIAL) Screen.ONBOARDING_APPS else Screen.LOCK_SETTINGS)
     }
 
@@ -548,7 +543,7 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
         wheelSize = preferences.getInt("wheel_size",250),
         textScale = preferences.getFloat("text_scale",1f),
         showCornerClock = preferences.getBoolean("corner_clock", true),
-        lockMode = runCatching { LockMode.valueOf(preferences.getString("lock_mode", LockMode.PASSCODE.name)!!) }.getOrDefault(LockMode.PASSCODE)
+        lockMode = LockMode.PATTERN
     )
     private fun saveConfig(c: PodConfig) { preferences.edit().putInt("preset",c.preset).putInt("body",c.bodyTheme).putInt("display",c.displayTheme).putInt("wheel",c.wheelTheme).putInt("accent",c.accentTheme).putInt("wheel_size",c.wheelSize).putFloat("text_scale",c.textScale).putBoolean("corner_clock",c.showCornerClock).putString("lock_mode",c.lockMode.name).apply() }
     private fun loadSequence(key: String, fallback: List<Int>): List<Int> = preferences.getString(key, null)?.split(',')?.mapNotNull { it.toIntOrNull() }?.takeIf { it.isNotEmpty() } ?: fallback
