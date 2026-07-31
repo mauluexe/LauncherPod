@@ -262,20 +262,23 @@ class LauncherViewModel(private val context: Context) : ViewModel() {
 
     fun playPause() {
         if (_state.value.screen == Screen.LOCK || _state.value.screen == Screen.SET_CREDENTIAL || _state.value.screen.name.startsWith("ONBOARDING")) return
+        val current = player
+        // A paused external MediaSession must not steal the first local play action.
+        // When no local player exists, start a random local track with shuffle enabled.
+        if (current == null && _state.value.tracks.isNotEmpty() && ExternalPlaybackBridge.state.value?.isPlaying != true) {
+            _state.value = _state.value.copy(
+                shuffleEnabled = true,
+                playbackQueueIds = _state.value.tracks.map(MusicTrack::id)
+            )
+            playTrack(_state.value.tracks.indices.random())
+            return
+        }
         if (externalIsActive()) {
             ExternalPlaybackBridge.playPause()
             if (_state.value.screen != Screen.NOW_PLAYING) open(Screen.NOW_PLAYING)
             return
         }
-        val current = player
         when {
-            current == null && _state.value.tracks.isNotEmpty() -> {
-                _state.value = _state.value.copy(
-                    shuffleEnabled = true,
-                    playbackQueueIds = _state.value.tracks.map(MusicTrack::id)
-                )
-                playTrack(_state.value.tracks.indices.random())
-            }
             _state.value.screen != Screen.NOW_PLAYING && current != null -> {
                 _state.value = _state.value.copy(screen = Screen.NOW_PLAYING)
             }
