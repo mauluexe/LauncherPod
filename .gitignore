@@ -1,0 +1,22 @@
+# Android / Gradle
+.gradle/
+.kotlin/
+**/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Signing and secrets
+*.jks
+*.keystore
+keystore.properties
+
+# Local test artifacts
+outputs/
+work/
+
+# OS files
+.DS_Store
+Thumbs.db

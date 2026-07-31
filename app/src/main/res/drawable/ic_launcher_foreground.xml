@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- iPod-like body -->
+    <path android:fillColor="#F4F1E8" android:pathData="M22,12h64a10,10 0,0 1,10 10v64a10,10 0,0 1,-10 10h-64a10,10 0,0 1,-10 -10v-64a10,10 0,0 1,10 -10z"/>
+
+    <!-- Display -->
+    <path android:fillColor="#18181B" android:pathData="M26,23h56a5,5 0,0 1,5 5v24a5,5 0,0 1,-5 5h-56a5,5 0,0 1,-5 -5v-24a5,5 0,0 1,5 -5z"/>
+
+    <!-- Home symbol: the launcher identity -->
+    <path android:fillColor="#F4F1E8" android:pathData="M39,40L54,29L69,40V51H59V43H49V51H39Z"/>
+
+    <!-- Click wheel -->
+    <path android:fillColor="#FFFFFF" android:pathData="M54,62a16,16 0,1 0,0 32a16,16 0,1 0,0 -32"/>
+    <path android:fillColor="#18181B" android:pathData="M54,72a6,6 0,1 0,0 12a6,6 0,1 0,0 -12"/>
+</vector>
